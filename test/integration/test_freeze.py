@@ -26,7 +26,7 @@ class TestActionFileFreeze(CuratorTestCase):
             # Freeze / Unfreeze not supported before 6.6
             self.assertEqual(expected, 1)
             return
-        
+
         self.create_index('my_index')
         self.create_index('dummy')
         cluster_state = self.client.cluster.state(
@@ -36,12 +36,12 @@ class TestActionFileFreeze(CuratorTestCase):
             "false",
             cluster_state['metadata']['indices']['my_index']['settings']['index'].get('frozen', "false")
         )
-        
+
         self.assertEqual(
             "false",
             cluster_state['metadata']['indices']['dummy']['settings']['index'].get('frozen', "false")
         )
-                
+
         test = clicktest.CliRunner()
         _ = test.invoke(
                 curator.cli,
@@ -57,7 +57,7 @@ class TestActionFileFreeze(CuratorTestCase):
             "true",
             cluster_state['metadata']['indices']['my_index']['settings']['index'].get('frozen', "false")
         )
-        
+
         self.assertEqual(
             "false",
             cluster_state['metadata']['indices']['dummy']['settings']['index'].get('frozen', "false")
@@ -88,7 +88,7 @@ class TestActionFileFreeze(CuratorTestCase):
             "true",
             cluster_state['metadata']['indices']['my_index']['settings']['index'].get('frozen', "false")
         )
-        
+
         self.assertEqual(
             "false",
             cluster_state['metadata']['indices']['dummy']['settings']['index'].get('frozen', "false")
@@ -108,7 +108,7 @@ class TestActionFileFreeze(CuratorTestCase):
             "true",
             cluster_state['metadata']['indices']['my_index']['settings']['index'].get('frozen', "false")
         )
-        
+
         self.assertEqual(
             "false",
             cluster_state['metadata']['indices']['dummy']['settings']['index'].get('frozen', "false")
@@ -136,7 +136,7 @@ class TestActionFileFreeze(CuratorTestCase):
             "false",
             cluster_state['metadata']['indices']['my_index']['settings']['index'].get('frozen', "false")
         )
-        
+
         self.assertEqual(
             "false",
             cluster_state['metadata']['indices']['dummy']['settings']['index'].get('frozen', "false")
@@ -149,7 +149,7 @@ class TestActionFileFreeze(CuratorTestCase):
                         self.args['actionfile']
                     ],
                     )
-        
+
         cluster_state = self.client.cluster.state(
                 metric='metadata',
             )
@@ -157,7 +157,7 @@ class TestActionFileFreeze(CuratorTestCase):
             "false",
             cluster_state['metadata']['indices']['my_index']['settings']['index'].get('frozen', "false")
         )
-        
+
         self.assertEqual(
             "false",
             cluster_state['metadata']['indices']['dummy']['settings']['index'].get('frozen', "false")
@@ -189,9 +189,9 @@ class TestCLIFreeze(CuratorTestCase):
             "false",
             cluster_state['metadata']['indices']['my_other']['settings']['index'].get('frozen', "false")
         )
-        
+
         # Now freeze `index` (dummy stays unfrozen)
-        
+
         args = self.get_runner_args()
         args += [
             '--config', self.args['configfile'],
@@ -211,7 +211,7 @@ class TestCLIFreeze(CuratorTestCase):
             "true",
             cluster_state['metadata']['indices']['my_other']['settings']['index'].get('frozen', "false")
         )
-        
+
         self.assertEqual(
             "false",
             cluster_state['metadata']['indices']['dummy']['settings']['index'].get('frozen', "false")

@@ -93,9 +93,9 @@ class Blacklist(Whitelist):
 class LogInfo(object):
     """Logging Class"""
     def __init__(self, cfg):
-        cfg['loglevel'] = 'INFO' if not 'loglevel' in cfg else cfg['loglevel']
-        cfg['logfile'] = None if not 'logfile' in cfg else cfg['logfile']
-        cfg['logformat'] = 'default' if not 'logformat' in cfg else cfg['logformat']
+        cfg['loglevel'] = 'INFO' if 'loglevel' not in cfg else cfg['loglevel']
+        cfg['logfile'] = None if 'logfile' not in cfg else cfg['logfile']
+        cfg['logformat'] = 'default' if 'logformat' not in cfg else cfg['logformat']
         self.numeric_log_level = getattr(logging, cfg['loglevel'].upper(), None)
         self.format_string = '%(asctime)s %(levelname)-9s %(message)s'
         if not isinstance(self.numeric_log_level, int):
@@ -111,7 +111,7 @@ class LogInfo(object):
                 '%(funcName)22s:%(lineno)-4d %(message)s'
             )
 
-        if cfg['logformat'] == 'json' or cfg['logformat'] == 'logstash':
+        if cfg['logformat'] in ['json', 'logstash']:
             self.handler.setFormatter(LogstashFormatter())
         elif cfg['logformat'] == 'ecs':
             self.handler.setFormatter(ECSFormatter())

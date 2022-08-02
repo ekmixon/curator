@@ -52,18 +52,14 @@ def validate_filter_json(ctx, param, value):
     if value is None:
         return value
     try:
-        filter_list = ensure_list(json.loads(value))
-        return filter_list
+        return ensure_list(json.loads(value))
     except ValueError:
         raise click.BadParameter('Filter list is invalid JSON: {0}'.format(value))
 
 def false_to_none(ctx, param, value):
     """Convert Python False to a None"""
     try:
-        if value:
-            retval = True
-        else:
-            retval = None
+        retval = True if value else None
     except ValueError:
         raise click.BadParameter('Invalid value: {0}'.format(value))
     return retval
@@ -88,7 +84,7 @@ def actionator(action, action_obj, dry_run=True):
         else:
             action_obj.do_action()
     except Exception as err:
-        if isinstance(err, NoIndices) or isinstance(err, NoSnapshots):
+        if isinstance(err, (NoIndices, NoSnapshots)):
             logger.error(
                 'Unable to complete action "{0}".  No actionable items '
                 'in list: {1}'.format(action, type(err))
@@ -109,10 +105,7 @@ def do_filters(list_object, filters, ignore=False):
         list_object.iterate_filters(filters)
         list_object.empty_list_check()
     except (NoIndices, NoSnapshots) as err:
-        if isinstance(err, NoIndices):
-            otype = 'index'
-        else:
-            otype = 'snapshot'
+        otype = 'index' if isinstance(err, NoIndices) else 'snapshot'
         if ignore:
             logger.info(
                 'Singleton action not performed: empty {0} list'.format(otype)
@@ -147,20 +140,19 @@ def config_override(ctx, config_dict):
     if config_dict is None:
         config_dict = {}
     for k in ['client', 'logging']:
-        if not k in config_dict:
+        if k not in config_dict:
             config_dict[k] = {}
     for k in list(ctx.params.keys()):
         if k in ['dry_run', 'config']:
-            pass
-        elif k == 'host':
+            continue
+        if k == 'host':
             if 'host' in ctx.params and ctx.params['host'] is not None:
                 config_dict['client']['hosts'] = ctx.params[k]
         elif k in ['loglevel', 'logfile', 'logformat', 'ecs']:
             if k in ctx.params and ctx.params[k] is not None:
                 config_dict['logging'][k] = ctx.params[k]
-        else:
-            if k in ctx.params and ctx.params[k] is not None:
-                config_dict['client'][k] = ctx.params[k]
+        elif k in ctx.params and ctx.params[k] is not None:
+            config_dict['client'][k] = ctx.params[k]
     # After override, prune the nones
     for k in ['client', 'logging']:
         config_dict[k] = prune_nones(config_dict[k])

@@ -195,7 +195,7 @@ class TestByteSize(TestCase):
     def test_byte_size(self):
         size = 3*1024*1024*1024*1024*1024*1024*1024
         unit = ['Z','E','P','T','G','M','K','']
-        for i in range(0,7):
+        for i in range(7):
             self.assertEqual('3.0{0}B'.format(unit[i]), curator.byte_size(size))
             size /= 1024
     def test_byte_size_yotta(self):
@@ -206,9 +206,11 @@ class TestByteSize(TestCase):
 
 class TestChunkIndexList(TestCase):
     def test_big_list(self):
-        indices = []
-        for i in range(100,150):
-            indices.append("superlongindexnamebyanystandardyouchoosethisissillyhowbigcanthisgetbeforeitbreaks" + str(i))
+        indices = [
+            f"superlongindexnamebyanystandardyouchoosethisissillyhowbigcanthisgetbeforeitbreaks{str(i)}"
+            for i in range(100, 150)
+        ]
+
         self.assertEqual(2, len(curator.chunk_index_list(indices)))
     def test_small_list(self):
         self.assertEqual(1, len(curator.chunk_index_list(['short','list','of','indices'])))
@@ -1294,7 +1296,7 @@ class TestGetDateMath(TestCase):
         client = Mock()
         datemath = u'{hasthemath}'
         psuedo_random = u'not_random_at_all'
-        expected = u'curator_get_datemath_function_' + psuedo_random + u'-hasthemath'
+        expected = f'curator_get_datemath_function_{psuedo_random}-hasthemath'
         client.indices.get.side_effect = (
             elasticsearch.NotFoundError(
                 404, "simulated error", {u'error':{u'index':expected}})

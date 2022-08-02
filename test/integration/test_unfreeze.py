@@ -29,7 +29,7 @@ class TestActionFileUnfreezeFrozen(CuratorTestCase):
             # Freeze / Unfreeze not supported before 6.6
             self.assertEqual(expected, 1)
             return
-        
+
         t1, t2 = ('dummy', 'my_index')
         self.create_index(t1)
         self.create_index(t2)
@@ -44,12 +44,12 @@ class TestActionFileUnfreezeFrozen(CuratorTestCase):
             "true",
             cluster_state['metadata']['indices']['my_index']['settings']['index'].get('frozen', "false")
         )
-        
+
         self.assertEqual(
             "false",
             cluster_state['metadata']['indices']['dummy']['settings']['index'].get('frozen', "false")
         )        
-        
+
         test = clicktest.CliRunner()
         _ = test.invoke(
                     curator.cli,
@@ -83,7 +83,7 @@ class TestActionFileUnfreezeFrozen(CuratorTestCase):
             # Freeze / Unfreeze not supported before 6.6
             self.assertEqual(expected, 1)
             return
-        
+
         t1, t2 = ('dummy', 'my_index')
         self.create_index(t1)
         self.create_index(t2)
@@ -97,12 +97,12 @@ class TestActionFileUnfreezeFrozen(CuratorTestCase):
             "true",
             cluster_state['metadata']['indices']['my_index']['settings']['index'].get('frozen', "false")
         )
-        
+
         self.assertEqual(
             "false",
             cluster_state['metadata']['indices']['dummy']['settings']['index'].get('frozen', "false")
         )
-                
+
         test = clicktest.CliRunner()
         result = test.invoke(
                     curator.cli,
@@ -118,7 +118,7 @@ class TestActionFileUnfreezeFrozen(CuratorTestCase):
             "true",
             cluster_state['metadata']['indices']['my_index']['settings']['index'].get('frozen', "false")
         )
-        
+
         self.assertEqual(
             "false",
             cluster_state['metadata']['indices']['dummy']['settings']['index'].get('frozen', "false")
@@ -133,7 +133,7 @@ class TestCLIUnfreezeFrozen(CuratorTestCase):
             # Freeze / Unfreeze not supported before 6.6
             self.assertEqual(expected, 1)
             return
-        
+
         t1, t2 = ('dummy', 'my_index')
         self.create_index(t1)
         self.create_index(t2)

@@ -508,7 +508,7 @@ class TestActionFileDeleteIndices(CuratorTestCase):
     def test_allow_ilm_indices_false(self):
         # ILM will not be added until 6.6
         if curator.get_version(self.client) < (6,6,0):
-            
+
             self.assertTrue(True)
         else:
             import requests

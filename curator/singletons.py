@@ -70,10 +70,7 @@ def cli(
         logfile, logformat
     ):
     """CLI input"""
-    if os.path.isfile(config):
-        initial_config = test_config(config)
-    else:
-        initial_config = None
+    initial_config = test_config(config) if os.path.isfile(config) else None
     configuration = config_override(ctx, initial_config)
     set_logging(configuration['logging'])
     test_client_options(configuration['client'])

@@ -53,20 +53,12 @@ class SnapshotList(object):
             self.snapshots.remove(snap)
 
     def __excludify(self, condition, exclude, snap, msg=None):
-        if condition:
-            if exclude:
-                text = "Removed from actionable list"
-                self.__not_actionable(snap)
-            else:
-                text = "Remains in actionable list"
-                self.__actionable(snap)
+        if condition and exclude or not condition and not exclude:
+            text = "Removed from actionable list"
+            self.__not_actionable(snap)
         else:
-            if exclude:
-                text = "Remains in actionable list"
-                self.__actionable(snap)
-            else:
-                text = "Removed from actionable list"
-                self.__not_actionable(snap)
+            text = "Remains in actionable list"
+            self.__actionable(snap)
         if msg:
             self.loggit.debug('{0}: {1}'.format(text, msg))
 
@@ -120,8 +112,7 @@ class SnapshotList(object):
         self.empty_list_check()
         tstamp = utils.TimestringSearch(timestring)
         for snapshot in self.working_list():
-            epoch = tstamp.get_epoch(snapshot)
-            if epoch:
+            if epoch := tstamp.get_epoch(snapshot):
                 self.snapshot_info[snapshot]['age_by_name'] = epoch
             else:
                 self.snapshot_info[snapshot]['age_by_name'] = None
@@ -169,7 +160,7 @@ class SnapshotList(object):
                 if self.snapshot_info[snap][self.age_keyfield]:
                     temp[snap] = self.snapshot_info[snap][self.age_keyfield]
                 else:
-                    msg = ' snapshot %s has no age' % snap
+                    msg = f' snapshot {snap} has no age'
                     self.__excludify(True, True, snap, msg)
             else:
                 msg = (
@@ -299,10 +290,7 @@ class SnapshotList(object):
             # timestamps.
             snapshot_age = utils.fix_epoch(
                 self.snapshot_info[snapshot][self.age_keyfield])
-            if direction == 'older':
-                agetest = snapshot_age < por
-            else: # 'younger'
-                agetest = snapshot_age > por
+            agetest = snapshot_age < por if direction == 'older' else snapshot_age > por
             self.__excludify(agetest, exclude, snapshot, msg)
 
     def filter_by_state(self, state=None, exclude=False):
@@ -382,16 +370,14 @@ class SnapshotList(object):
             # Default to sorting by snapshot name
             sorted_snapshots = sorted(working_list, reverse=reverse)
 
-        idx = 1
-        for snap in sorted_snapshots:
+        for idx, snap in enumerate(sorted_snapshots, start=1):
             msg = (
                 '{0} is {1} of specified count of {2}.'.format(
                     snap, idx, count
                 )
             )
-            condition = True if idx <= count else False
+            condition = idx <= count
             self.__excludify(condition, exclude, snap, msg)
-            idx += 1
 
     def filter_period(
             self, period_type='relative', source='name', range_from=None, range_to=None,
@@ -510,7 +496,7 @@ class SnapshotList(object):
 
         """
         # Make sure we actually _have_ filters to act on
-        if not 'filters' in config or not config['filters']:
+        if 'filters' not in config or not config['filters']:
             self.loggit.info('No filters in config.  Returning unaltered object.')
             return
 

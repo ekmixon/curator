@@ -130,9 +130,7 @@ class TestActionFileShrink(CuratorTestCase):
         self.add_docs(self.idx)
         # add alias in the source index
         self.alias = 'my_alias'
-        alias_actions = []
-        alias_actions.append(
-            {'add': {'index': self.idx, 'alias': self.alias}})
+        alias_actions = [{'add': {'index': self.idx, 'alias': self.alias}}]
         self.client.indices.update_aliases({'actions': alias_actions})
         self.write_config(self.args['configfile'], testvars.client_config.format(host, port))
         self.write_config(self.args['actionfile'], action_args)
@@ -217,12 +215,13 @@ class TestActionFileShrink(CuratorTestCase):
                 'False',
                 'index.codec',
                 'best_compression',
-                dict(),
+                {},
                 allocation_type,
                 key,
-                value
+                value,
             )
         )
+
         indices = curator.get_indices(self.client)
         self.assertEqual(2, len(indices)) # Should only have `my_index-shrunken`
         settings = self.client.indices.get_settings()
@@ -327,9 +326,7 @@ class TestCLIShrink(CuratorTestCase):
         self.add_docs(self.idx)
         # add alias in the source index
         self.alias = 'my_alias'
-        alias_actions = []
-        alias_actions.append(
-            {'add': {'index': self.idx, 'alias': self.alias}})
+        alias_actions = [{'add': {'index': self.idx, 'alias': self.alias}}]
         self.client.indices.update_aliases({'actions': alias_actions})
         self.write_config(self.args['configfile'], testvars.client_config.format(host, port))
         logger.debug('Test pre-execution build phase complete.')

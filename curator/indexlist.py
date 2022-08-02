@@ -40,20 +40,12 @@ class IndexList(object):
             self.indices.remove(idx)
 
     def __excludify(self, condition, exclude, index, msg=None):
-        if condition == True:
-            if exclude:
-                text = "Removed from actionable list"
-                self.__not_actionable(index)
-            else:
-                text = "Remains in actionable list"
-                self.__actionable(index)
+        if condition == True and exclude or condition != True and not exclude:
+            text = "Removed from actionable list"
+            self.__not_actionable(index)
         else:
-            if exclude:
-                text = "Remains in actionable list"
-                self.__actionable(index)
-            else:
-                text = "Removed from actionable list"
-                self.__not_actionable(index)
+            text = "Remains in actionable list"
+            self.__actionable(index)
         if msg:
             self.loggit.debug('{0}: {1}'.format(text, msg))
 
@@ -78,7 +70,7 @@ class IndexList(object):
         """
         self.loggit.debug(
             'Building preliminary index metadata for {0}'.format(index))
-        if not index in self.index_info:
+        if index not in self.index_info:
             self.index_info[index] = {
                 "age" : {},
                 "number_of_replicas" : 0,
@@ -157,12 +149,12 @@ class IndexList(object):
         loop_number = round(len(data)/slice_number) if round(len(data)/slice_number) > 0 else 1
         self.loggit.debug("Bulk Queries - number requests created: {0}".format(loop_number))
 
-        for num in range(0, loop_number):
+        for num in range(loop_number):
             if num == (loop_number-1):
                 data_sliced = data[num*slice_number:]
             else:
                 data_sliced = data[num*slice_number:(num+1)*slice_number]
-            query_result.update(exec_func(data_sliced))
+            query_result |= exec_func(data_sliced)
 
         return query_result
 
@@ -180,12 +172,12 @@ class IndexList(object):
         for l in index_lists:
             working_list = {}
             try:
-                working_list.update(self._get_cluster_state(l))
+                working_list |= self._get_cluster_state(l)
             except TransportError as err:
                 if err.status_code == 413:
                     self.loggit.debug('Huge Payload 413 Error - Trying to get information with multiple requests')
                     working_list = {}
-                    working_list.update(self._bulk_queries(l, self._get_cluster_state))
+                    working_list |= self._bulk_queries(l, self._get_cluster_state)
 
             if working_list:
                 for index in list(working_list.keys()):
@@ -250,19 +242,19 @@ class IndexList(object):
         for l in index_lists:
             working_list = {}
             try:
-                working_list.update(self._get_indices_segments(l))
+                working_list |= self._get_indices_segments(l)
             except TransportError as err:
                 if err.status_code == 413:
                     self.loggit.debug('Huge Payload 413 Error - Trying to get information with multiple requests')
                     working_list = {}
-                    working_list.update(self._bulk_queries(l, self._get_indices_segments))
+                    working_list |= self._bulk_queries(l, self._get_indices_segments)
 
             if working_list:
                 for index in list(working_list.keys()):
                     shards = working_list[index]['shards']
                     segmentcount = 0
                     for shardnum in shards:
-                        for shard in range(0,len(shards[shardnum])):
+                        for shard in range(len(shards[shardnum])):
                             segmentcount += (
                                 shards[shardnum][shard]['num_search_segments']
                             )
@@ -449,8 +441,7 @@ class IndexList(object):
         pattern = re.compile(regex)
         for index in self.working_list():
             self.loggit.debug('Filter by regex: Index: {0}'.format(index))
-            match = pattern.search(index)
-            if match:
+            if match := pattern.search(index):
                 self.__excludify(True, exclude, index)
             else:
                 self.__excludify(False, exclude, index)
@@ -523,8 +514,9 @@ class IndexList(object):
                 # timestamps.
                 if unit_count_pattern:
                     self.loggit.debug('Unit_count_pattern is set, trying to match pattern to index "{0}"'.format(index))
-                    unit_count_from_index = utils.get_unit_count_from_name(index, unit_count_matcher)
-                    if unit_count_from_index:
+                    if unit_count_from_index := utils.get_unit_count_from_name(
+                        index, unit_count_matcher
+                    ):
                         self.loggit.debug('Pattern matched, applying unit_count of  "{0}"'.format(unit_count_from_index))
                         adjustedPoR = utils.get_point_of_reference(unit, unit_count_from_index, epoch)
                         self.loggit.debug('Adjusting point of reference from {0} to {1} based on unit_count of {2} from index name'.format(PoR, adjustedPoR, unit_count_from_index))
@@ -541,10 +533,7 @@ class IndexList(object):
                         adjustedPoR = PoR
                 else:
                     adjustedPoR = PoR
-                if direction == 'older':
-                    agetest = age < adjustedPoR
-                else:
-                    agetest = age > adjustedPoR
+                agetest = age < adjustedPoR if direction == 'older' else age > adjustedPoR
                 self.__excludify(agetest and not removeThisIndex, exclude, index, msg)
             except KeyError:
                 self.loggit.debug(
@@ -787,15 +776,16 @@ class IndexList(object):
             raise exceptions.MissingArgument('No value for "key" provided')
         if not value:
             raise exceptions.MissingArgument('No value for "value" provided')
-        if not allocation_type in ['include', 'exclude', 'require']:
+        if allocation_type not in ['include', 'exclude', 'require']:
             raise ValueError(
                 'Invalid "allocation_type": {0}'.format(allocation_type)
             )
         self.empty_list_check()
         index_lists = utils.chunk_index_list(self.indices)
         for l in index_lists:
-            working_list = self.client.indices.get_settings(index=utils.to_csv(l))
-            if working_list:
+            if working_list := self.client.indices.get_settings(
+                index=utils.to_csv(l)
+            ):
                 for index in list(working_list.keys()):
                     try:
                         has_routing = (
@@ -954,15 +944,17 @@ class IndexList(object):
                     # also remove it from filtered_indices
                     filtered_indices.remove(index)
                 # Presort these filtered_indices using the lambda
-                presorted = sorted(filtered_indices, key=lambda x: r.match(x).group(1))
+                presorted = sorted(filtered_indices, key=lambda x: r.match(x)[1])
             except Exception as e:
                 raise exceptions.ActionError('Unable to process pattern: "{0}". Error: {1}'.format(pattern, e))
             # Initialize groups here
-            groups = []
-            # We have to pull keys k this way, but we don't need to keep them
-            # We only need g for groups
-            for _, g in itertools.groupby(presorted, key=lambda x: r.match(x).group(1)):
-                groups.append(list(g))
+            groups = [
+                list(g)
+                for _, g in itertools.groupby(
+                    presorted, key=lambda x: r.match(x)[1]
+                )
+            ]
+
         else:
             # Since pattern will create a list of lists, and we iterate over that,
             # we need to put our single list inside a list
@@ -987,16 +979,14 @@ class IndexList(object):
                 sorted_indices = sorted(group, reverse=reverse)
 
 
-            idx = 1
-            for index in sorted_indices:
+            for idx, index in enumerate(sorted_indices, start=1):
                 msg = (
                     '{0} is {1} of specified count of {2}.'.format(
                         index, idx, count
                     )
                 )
-                condition = True if idx <= count else False
+                condition = idx <= count
                 self.__excludify(condition, exclude, index, msg)
-                idx += 1
 
     def filter_by_shards(self, number_of_shards=None, shard_filter_behavior='greater_than', exclude=False):
         """
@@ -1183,8 +1173,9 @@ class IndexList(object):
             self.loggit.debug('Empty working list. No ILM indices to filter.')
             return
         for l in index_lists:
-            working_list = self.client.indices.get_settings(index=utils.to_csv(l))
-            if working_list:
+            if working_list := self.client.indices.get_settings(
+                index=utils.to_csv(l)
+            ):
                 for index in list(working_list.keys()):
                     try:
                         subvalue = working_list[index]['settings']['index']['lifecycle']
@@ -1217,7 +1208,7 @@ class IndexList(object):
         """
         self.loggit.debug('Iterating over a list of filters')
         # Make sure we actually _have_ filters to act on
-        if not 'filters' in filter_dict or len(filter_dict['filters']) < 1:
+        if 'filters' not in filter_dict or len(filter_dict['filters']) < 1:
             self.loggit.info('No filters in config.  Returning unaltered object.')
             return
 

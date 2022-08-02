@@ -58,9 +58,7 @@ def include_aliases():
     return {Optional('include_aliases', default=False): Any(bool, All(Any(*string_types), Boolean()))}
 
 def include_global_state(action):
-    default = False
-    if action == 'snapshot':
-        default = True
+    default = action == 'snapshot'
     return {Optional('include_global_state', default=default): Any(bool, All(Any(*string_types), Boolean()))}
 
 def index_settings():
@@ -279,19 +277,14 @@ def value():
     return {Required('value', default=None): Any(None, *string_types)}
 
 def wait_for_active_shards(action):
-    value = 0
-    if action in ['reindex', 'shrink']:
-        value = 1
+    value = 1 if action in ['reindex', 'shrink'] else 0
     return {
         Optional('wait_for_active_shards', default=value): Any(
             Coerce(int), 'all', None)
     }
 
 def wait_for_completion(action):
-    # if action in ['reindex', 'restore', 'snapshot']:
-    value = True
-    if action in ['allocation', 'cluster_routing', 'replicas']:
-        value = False
+    value = action not in ['allocation', 'cluster_routing', 'replicas']
     return {Optional('wait_for_completion', default=value): Any(bool, All(Any(*string_types), Boolean()))}
 
 def wait_for_rebalance():
@@ -300,10 +293,7 @@ def wait_for_rebalance():
 def wait_interval(action):
     minval = 1
     maxval = 30
-    # if action in ['allocation', 'cluster_routing', 'replicas']:
-    value = 3
-    if action in ['restore', 'snapshot', 'reindex', 'shrink']:
-        value = 9
+    value = 9 if action in ['restore', 'snapshot', 'reindex', 'shrink'] else 3
     return {Optional('wait_interval', default=value): Any(All(
                 Coerce(int), Range(min=minval, max=maxval)), None)}
 

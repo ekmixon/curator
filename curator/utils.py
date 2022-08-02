@@ -46,7 +46,7 @@ def get_yaml(path):
     yaml.add_implicit_resolver("!single", single)
     def single_constructor(loader, node):
         value = loader.construct_scalar(node)
-        proto = single.match(value).group(1)
+        proto = single.match(value)[1]
         default = None
         if len(proto.split(':')) > 1:
             envvar, default = proto.split(':')
@@ -103,9 +103,11 @@ def rollable_alias(client, alias):
     # makes it possible to have more than one index associated with a rollover index
     if get_version(client) >= (6, 5, 0):
         for idx in response:
-            if 'is_write_index' in response[idx]['aliases'][alias]:
-                if response[idx]['aliases'][alias]['is_write_index']:
-                    return True
+            if (
+                'is_write_index' in response[idx]['aliases'][alias]
+                and response[idx]['aliases'][alias]['is_write_index']
+            ):
+                return True
     # implied `else` here: If not version 6.5.0+ and has `is_write_index`, it has to fit the
     # following criteria:
     if len(response) > 1:
@@ -134,8 +136,7 @@ def verify_client_object(test):
     :rtype: None
     """
     # Ignore mock type for testing
-    if str(type(test)) == "<class 'mock.Mock'>" or \
-        str(type(test)) == "<class 'mock.mock.Mock'>":
+    if str(type(test)) in {"<class 'mock.Mock'>", "<class 'mock.mock.Mock'>"}:
         pass
     elif not isinstance(test, elasticsearch.Elasticsearch):
         raise TypeError(
@@ -228,7 +229,7 @@ def get_datetime(index_timestamp, timestring):
             # Fake as so we read Greg format instead. We will process it later
             timestring = timestring.replace("%G", "%Y").replace("%V", "%W")
     elif '%m' in timestring:
-        if not '%d' in timestring:
+        if '%d' not in timestring:
             timestring += '%d'
             index_timestamp += '1'
 
@@ -260,8 +261,8 @@ def fix_epoch(epoch):
     if len(str(epoch)) <= 10:
         # Epoch is fine, no changes
         pass
-    elif len(str(epoch)) > 10 and len(str(epoch)) <= 13:
-        epoch = int(epoch/1000)
+    elif len(str(epoch)) <= 13:
+        epoch //= 1000
     else:
         orders_of_magnitude = len(str(epoch)) - 10
         powers_of_ten = 10**orders_of_magnitude
@@ -313,8 +314,7 @@ class TimestringSearch(object):
             `timestring`
         :rtype: int
         """
-        match = self.pattern.search(searchme)
-        if match:
+        if match := self.pattern.search(searchme):
             if match.group("date"):
                 timestamp = match.group("date")
                 return datetime_to_epoch(
@@ -368,13 +368,11 @@ def get_unit_count_from_name(index_name, pattern):
     """Derive the unit_count from the index name"""
     if pattern is None:
         return None
-    match = pattern.search(index_name)
-    if match:
-        try:
-            return int(match.group(1))
-        except Exception:
-            return None
-    else:
+    if not (match := pattern.search(index_name)):
+        return None
+    try:
+        return int(match.group(1))
+    except Exception:
         return None
 
 def date_range(unit, range_from, range_to, epoch=None, week_starts_on='sunday'):
@@ -422,9 +420,7 @@ def date_range(unit, range_from, range_to, epoch=None, week_starts_on='sunday'):
     if unit == 'weeks':
         point_of_ref = datetime(
             raw_point_of_ref.year, raw_point_of_ref.month, raw_point_of_ref.day, 0, 0, 0)
-        sunday = False
-        if week_starts_on.lower() == 'sunday':
-            sunday = True
+        sunday = week_starts_on.lower() == 'sunday'
         weekday = point_of_ref.weekday()
         # Compensate for ISO week starting on Monday by default
         if sunday:
@@ -436,7 +432,7 @@ def date_range(unit, range_from, range_to, epoch=None, week_starts_on='sunday'):
         year = raw_point_of_ref.year
         month = raw_point_of_ref.month
         if origin > 0:
-            for _ in range(0, origin):
+            for _ in range(origin):
                 if month == 1:
                     year -= 1
                     month = 12
@@ -465,7 +461,7 @@ def date_range(unit, range_from, range_to, epoch=None, week_starts_on='sunday'):
     if unit == 'months':
         month = start_date.month
         year = start_date.year
-        for _ in range(0, count):
+        for _ in range(count):
             if month == 12:
                 year += 1
                 month = 1
@@ -473,11 +469,9 @@ def date_range(unit, range_from, range_to, epoch=None, week_starts_on='sunday'):
                 month += 1
         end_date = datetime(year, month, 1, 0, 0, 0)
         end_epoch = datetime_to_epoch(end_date) - 1
-    # Similarly, with years, we need to get the last moment of the year
     elif unit == 'years':
         end_date = datetime((raw_point_of_ref.year - origin) + count, 1, 1, 0, 0, 0)
         end_epoch = datetime_to_epoch(end_date) - 1
-    # It's not months or years, which have inconsistent reckoning...
     else:
         # This lets us use an existing method to simply add unit * count seconds
         # to get hours, days, or weeks, as they don't change
@@ -594,11 +588,7 @@ def to_csv(indices):
         in the format of a csv string already.
     :rtype: str
     """
-    indices = ensure_list(indices) # in case of a single value passed
-    if indices:
-        return ','.join(sorted(indices))
-    else:
-        return None
+    return ','.join(sorted(indices)) if (indices := ensure_list(indices)) else None
 
 def check_csv(value):
     """
@@ -611,15 +601,10 @@ def check_csv(value):
     if isinstance(value, list):
         return True
     # Python3 hack because it doesn't recognize unicode as a type anymore
-    if sys.version_info < (3, 0):
-        # pylint: disable=E0602
-        if isinstance(value, unicode):
-            value = str(value)
+    if sys.version_info < (3, 0) and isinstance(value, unicode):
+        value = str(value)
     if isinstance(value, str):
-        if len(value.split(',')) > 1: # It's a csv string.
-            return True
-        else: # There's only one value here, so it's not a csv string
-            return False
+        return len(value.split(',')) > 1
     else:
         raise TypeError(
             'Passed value: {0} is not a list or a string '
@@ -642,7 +627,7 @@ def chunk_index_list(indices):
             if not chunk:
                 chunk = index
             else:
-                chunk += "," + index
+                chunk += f",{index}"
         else:
             chunks.append(chunk.split(','))
             chunk = index
@@ -735,9 +720,10 @@ def check_master(client, master_only=False):
 
 def process_url_prefix_arg(data):
     """Test for and validate the ``url_prefix`` setting"""
-    if 'url_prefix' in data:
-        if (data['url_prefix'] is None or data['url_prefix'] == "None"):
-            data['url_prefix'] = ''
+    if 'url_prefix' in data and (
+        (data['url_prefix'] is None or data['url_prefix'] == "None")
+    ):
+        data['url_prefix'] = ''
     return data
 
 def process_host_args(data):
@@ -746,10 +732,10 @@ def process_host_args(data):
     Raise an exception if both ``host`` and ``hosts`` are present.
     If ``host`` is used, replace that with ``hosts``.
     """
-    if 'host' in data and 'hosts' in data:
-        raise exceptions.ConfigurationError(
-            'Both "host" and "hosts" are defined.  Pick only one.')
-    elif 'host' in data and 'hosts' not in data:
+    if 'host' in data:
+        if 'hosts' in data:
+            raise exceptions.ConfigurationError(
+                'Both "host" and "hosts" are defined.  Pick only one.')
         data['hosts'] = data['host']
         del data['host']
     data['hosts'] = '127.0.0.1' if 'hosts' not in data else data['hosts']
@@ -758,8 +744,7 @@ def process_host_args(data):
 
 def process_x_api_key_arg(data):
     """Test for arg and set x-api-key header if present"""
-    api_key = data.pop('api_key', False)
-    if api_key:
+    if api_key := data.pop('api_key', False):
         data['headers'] = {'x-api-key': api_key}
     return data
 
@@ -771,16 +756,15 @@ def process_master_only_arg(data):
     raise an exception.
     """
     master_only = data.pop('master_only', False)
-    if master_only:
-        if len(data['hosts']) > 1:
-            LOGGER.error(
-                '"master_only" cannot be true if more than one host is '
-                'specified. Hosts = {0}'.format(data['hosts'])
-            )
-            raise exceptions.ConfigurationError(
-                '"master_only" cannot be true if more than one host is '
-                'specified. Hosts = {0}'.format(data['hosts'])
-            )
+    if master_only and len(data['hosts']) > 1:
+        LOGGER.error(
+            '"master_only" cannot be true if more than one host is '
+            'specified. Hosts = {0}'.format(data['hosts'])
+        )
+        raise exceptions.ConfigurationError(
+            '"master_only" cannot be true if more than one host is '
+            'specified. Hosts = {0}'.format(data['hosts'])
+        )
     return data, master_only
 
 def process_auth_args(data):
@@ -801,7 +785,7 @@ def process_auth_args(data):
         LOGGER.error('Password provided without username.')
         LOGGER.fatal('Curator cannot proceed. Exiting.')
         raise exceptions.ClientException
-    elif username and not password:
+    elif username:
         LOGGER.error('Username provided without password.')
         LOGGER.fatal('Curator cannot proceed. Exiting.')
         raise exceptions.ClientException
@@ -849,17 +833,16 @@ def process_ssl_args(data):
             if data['certificate']:
                 data['verify_certs'] = True
                 data['ca_certs'] = data['certificate']
-            else: # Try to use bundled certifi certificates
-                if getattr(sys, 'frozen', False):
-                    # The application is frozen (compiled)
-                    datadir = os.path.dirname(sys.executable)
-                    data['verify_certs'] = True
-                    data['ca_certs'] = os.path.join(datadir, 'cacert.pem')
-                else:
-                    # Use certifi certificates via certifi.where():
-                    import certifi
-                    data['verify_certs'] = True
-                    data['ca_certs'] = certifi.where()
+            elif getattr(sys, 'frozen', False):
+                # The application is frozen (compiled)
+                datadir = os.path.dirname(sys.executable)
+                data['verify_certs'] = True
+                data['ca_certs'] = os.path.join(datadir, 'cacert.pem')
+            else:
+                # Use certifi certificates via certifi.where():
+                import certifi
+                data['verify_certs'] = True
+                data['ca_certs'] = certifi.where()
     return data
 
 def process_aws_args(data):
@@ -871,12 +854,14 @@ def process_aws_args(data):
         else data['aws_sign_request']
     data['aws_region'] = False if 'aws_region' not in data \
         else data['aws_region']
-    if data['aws_key'] or data['aws_secret_key'] or data['aws_sign_request']:
-        if not data['aws_region']:
-            raise exceptions.MissingArgument('Missing "aws_region".')
-        if data['aws_key'] or data['aws_secret_key']:
-            if not (data['aws_key'] and data['aws_secret_key']):
-                raise exceptions.MissingArgument('Missing AWS Access Key or AWS Secret Key')
+    if (
+        data['aws_key'] or data['aws_secret_key'] or data['aws_sign_request']
+    ) and not data['aws_region']:
+        raise exceptions.MissingArgument('Missing "aws_region".')
+    if (data['aws_key'] or data['aws_secret_key']) and not (
+        data['aws_key'] and data['aws_secret_key']
+    ):
+        raise exceptions.MissingArgument('Missing AWS Access Key or AWS Secret Key')
     return data
 
 def try_boto_session(data):
@@ -914,19 +899,18 @@ def try_aws_auth(data):
         has_requests_module = True
     except ImportError:
         LOGGER.debug('Not using "requests_aws4auth" python module to connect.')
-    if has_requests_module:
-        if data['aws_key']:
-            LOGGER.info('Configuring client to connect to AWS endpoint')
-            # Override these key values
-            data['use_ssl'] = True
-            data['verify_certs'] = True
-            if data['ssl_no_validate']:
-                data['verify_certs'] = False
-            data['http_auth'] = (
-                AWS4Auth(
-                    data['aws_key'], data['aws_secret_key'],
-                    data['aws_region'], 'es', session_token=data['aws_token'])
-            )
+    if has_requests_module and data['aws_key']:
+        LOGGER.info('Configuring client to connect to AWS endpoint')
+        # Override these key values
+        data['use_ssl'] = True
+        data['verify_certs'] = True
+        if data['ssl_no_validate']:
+            data['verify_certs'] = False
+        data['http_auth'] = (
+            AWS4Auth(
+                data['aws_key'], data['aws_secret_key'],
+                data['aws_region'], 'es', session_token=data['aws_token'])
+        )
     return data
 
 def do_version_check(client, skip):
@@ -1171,15 +1155,14 @@ def snapshot_in_progress(client, repository=None, snapshot=None):
     )
     if snapshot:
         retval = snapshot if snapshot in inprogress else False
-    else:
-        if not inprogress:
-            retval = False
-        elif len(inprogress) == 1:
-            retval = inprogress[0]
-        else: # This should not be possible
-            raise exceptions.CuratorException(
-                'More than 1 snapshot in progress: {0}'.format(inprogress)
-            )
+    elif not inprogress:
+        retval = False
+    elif len(inprogress) == 1:
+        retval = inprogress[0]
+    else: # This should not be possible
+        raise exceptions.CuratorException(
+            'More than 1 snapshot in progress: {0}'.format(inprogress)
+        )
     return retval
 
 def find_snapshot_tasks(client):
@@ -1222,7 +1205,7 @@ def safe_to_snap(client, repository=None, retry_interval=120, retry_count=3):
             if in_progress:
                 LOGGER.info(
                     'Snapshot already in progress: {0}'.format(in_progress))
-            elif ongoing_task:
+            else:
                 LOGGER.info('Snapshot activity detected in Tasks API')
             LOGGER.info(
                 'Pausing {0} seconds before retrying...'.format(retry_interval))
@@ -1253,16 +1236,12 @@ def create_snapshot_body(indices, ignore_unavailable=False,
     if not indices:
         LOGGER.error('No indices provided.')
         return False
-    body = {
+    return {
         "ignore_unavailable": ignore_unavailable,
         "include_global_state": include_global_state,
         "partial": partial,
+        "indices": indices if indices == '_all' else to_csv(indices),
     }
-    if indices == '_all':
-        body["indices"] = indices
-    else:
-        body["indices"] = to_csv(indices)
-    return body
 
 def create_repo_body(repo_type=None,
                      compress=True, chunk_size=None,
@@ -1310,9 +1289,7 @@ def create_repo_body(repo_type=None,
         raise exceptions.MissingArgument('Missing required parameter --repo_type')
 
     argdict = locals()
-    body = {}
-    body['type'] = argdict['repo_type']
-    body['settings'] = {}
+    body = {'type': argdict['repo_type'], 'settings': {}}
     settingz = [] # Differentiate from module settings
     maybes = [
         'compress', 'chunk_size', 'max_restore_bytes_per_sec', 'max_snapshot_bytes_per_sec']
@@ -1460,7 +1437,7 @@ def snapshot_running(client):
         report_failure(err)
     # We will only accept a positively identified False.  Anything else is
     # suspect.
-    return False if not status else True
+    return bool(status)
 
 def parse_date_pattern(name):
     """
@@ -1592,24 +1569,24 @@ def validate_actions(data):
                         '"{0}" filters'.format(k),
                         '{0}, "filters"'.format(loc)
                     ).result()
-                    add_remove.update(
-                        {
-                            k: {
-                                'filters' : SchemaCheck(
-                                    current_filters,
-                                    Schema(filters.Filters(current_action, location=loc)),
-                                    'filters',
-                                    '{0}, "{1}", "filters"'.format(loc, k)
-                                    ).result()
-                                }
-                        }
-                    )
+                    add_remove[k] = {
+                        'filters': SchemaCheck(
+                            current_filters,
+                            Schema(
+                                filters.Filters(current_action, location=loc)
+                            ),
+                            'filters',
+                            '{0}, "{1}", "filters"'.format(loc, k),
+                        ).result()
+                    }
+
             # Add/Remove here
             clean_config[action_id].update(add_remove)
-        elif current_action in ['cluster_routing', 'create_index', 'rollover']:
-            # neither cluster_routing nor create_index should have filters
-            pass
-        else: # Filters key only appears in non-alias actions
+        elif current_action not in [
+            'cluster_routing',
+            'create_index',
+            'rollover',
+        ]: # Filters key only appears in non-alias actions
             valid_filters = SchemaCheck(
                 valid_structure['filters'],
                 Schema(filters.Filters(current_action, location=loc)),
@@ -1619,17 +1596,18 @@ def validate_actions(data):
             clean_filters = validate_filters(current_action, valid_filters)
             clean_config[action_id].update({'filters' : clean_filters})
         # This is a special case for remote reindex
-        if current_action == 'reindex':
-            # Check only if populated with something.
-            if 'remote_filters' in valid_structure['options']:
-                valid_filters = SchemaCheck(
-                    valid_structure['options']['remote_filters'],
-                    Schema(filters.Filters(current_action, location=loc)),
-                    'filters',
-                    '{0}, "filters"'.format(loc)
-                ).result()
-                clean_remote_filters = validate_filters(current_action, valid_filters)
-                clean_config[action_id]['options'].update({'remote_filters': clean_remote_filters})
+        if (
+            current_action == 'reindex'
+            and 'remote_filters' in valid_structure['options']
+        ):
+            valid_filters = SchemaCheck(
+                valid_structure['options']['remote_filters'],
+                Schema(filters.Filters(current_action, location=loc)),
+                'filters',
+                '{0}, "filters"'.format(loc)
+            ).result()
+            clean_remote_filters = validate_filters(current_action, valid_filters)
+            clean_config[action_id]['options'].update({'remote_filters': clean_remote_filters})
 
     # if we've gotten this far without any Exceptions raised, it's valid!
     return {'actions': clean_config}
@@ -1652,9 +1630,9 @@ def health_check(client, **kwargs):
 
     for k in klist:
         # First, verify that all kwargs are in the list
-        if not k in list(hc_data.keys()):
+        if k not in list(hc_data.keys()):
             raise exceptions.ConfigurationError('Key "{0}" not in cluster health output')
-        if not hc_data[k] == kwargs[k]:
+        if hc_data[k] != kwargs[k]:
             LOGGER.debug(
                 'NO MATCH: Value for key "{0}", health check data: '
                 '{1}'.format(kwargs[k], hc_data[k])
@@ -1761,12 +1739,12 @@ def restore_check(client, index_list):
         if chunk_response == {}:
             LOGGER.info('_recovery returned an empty response. Trying again.')
             return False
-        response.update(chunk_response)
+        response |= chunk_response
     # Fixes added in #989
     LOGGER.info('Provided indices: {0}'.format(index_list))
     LOGGER.info('Found indices: {0}'.format(list(response.keys())))
     for index in response:
-        for shard in range(0, len(response[index]['shards'])):
+        for shard in range(len(response[index]['shards'])):
             # Apparently `is not` is not always `!=`.  Unsure why, will
             # research later.  Using != fixes #966
             if response[index]['shards'][shard]['stage'] != 'DONE':
@@ -2023,7 +2001,7 @@ def get_datemath(client, datemath, random_element=None):
             ''.join(random.choice(string.ascii_lowercase) for _ in range(32))
         )
     else:
-        random_prefix = 'curator_get_datemath_function_' + random_element
+        random_prefix = f'curator_get_datemath_function_{random_element}'
     datemath_dummy = '<{0}-{1}>'.format(random_prefix, datemath)
     # We both want and expect a 404 here (NotFoundError), since we have
     # created a 32 character random string to definitely be an unknown
@@ -2041,7 +2019,7 @@ def get_datemath(client, datemath, random_element=None):
     regex = re.compile(pattern)
     try:
         # And return only the now-parsed date string
-        return regex.match(faux_index).group(1)
+        return regex.match(faux_index)[1]
     except AttributeError:
         raise exceptions.ConfigurationError(
             'The rendered index "{0}" does not contain a valid date pattern '
@@ -2052,12 +2030,12 @@ def isdatemath(data):
     """Check if data is a datemath expression"""
     initial_check = r'^(.).*(.)$'
     regex = re.compile(initial_check)
-    opener = regex.match(data).group(1)
-    closer = regex.match(data).group(2)
+    opener = regex.match(data)[1]
+    closer = regex.match(data)[2]
     LOGGER.debug('opener =  {0}, closer = {1}'.format(opener, closer))
     if (opener == '<' and closer != '>') or (opener != '<' and closer == '>'):
         raise exceptions.ConfigurationError('Incomplete datemath encapsulation in "< >"')
-    elif (opener != '<' and closer != '>'):
+    elif opener != '<':
         return False
     return True
 
@@ -2080,10 +2058,10 @@ def parse_datemath(client, value):
     pattern = r'^<([^\{\}]*)?(\{.*(\{.*\})?\})([^\{\}]*)?>$'
     regex = re.compile(pattern)
     try:
-        prefix = regex.match(value).group(1) or ''
-        datemath = regex.match(value).group(2)
+        prefix = regex.match(value)[1] or ''
+        datemath = regex.match(value)[2]
         # formatter = regex.match(value).group(3) or '' (not captured, but counted)
-        suffix = regex.match(value).group(4) or ''
+        suffix = regex.match(value)[4] or ''
     except AttributeError:
         raise exceptions.ConfigurationError(
             'Value "{0}" does not contain a valid datemath pattern.'.format(value))
@@ -2095,16 +2073,13 @@ def get_write_index(client, alias):
         response = client.indices.get_alias(index=alias)
     except:
         raise exceptions.CuratorException('Alias {0} not found'.format(alias))
-    # If there are more than one in the list, one needs to be the write index
-    # otherwise the alias is a one to many, and can't do rollover.
-    if len(list(response.keys())) > 1:
-        for index in list(response.keys()):
-            try:
-                if response[index]['aliases'][alias]['is_write_index']:
-                    return index
-            except KeyError:
-                raise exceptions.FailedExecution(
-                    'Invalid alias: is_write_index not found in 1 to many alias')
-    else:
+    if len(list(response.keys())) <= 1:
         # There's only one, so this is it
         return list(response.keys())[0]
+    for index in list(response.keys()):
+        try:
+            if response[index]['aliases'][alias]['is_write_index']:
+                return index
+        except KeyError:
+            raise exceptions.FailedExecution(
+                'Invalid alias: is_write_index not found in 1 to many alias')

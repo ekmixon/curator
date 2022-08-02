@@ -7,7 +7,7 @@ import subprocess
 
 ENVIRO = dict(os.environ)
 PLATFORM = sys.platform
-PYVER = str(sys.version_info[0]) + '.' + str(sys.version_info[1])
+PYVER = f'{str(sys.version_info[0])}.{str(sys.version_info[1])}'
 ARCHIVE_FMT = { 'win32': 'zip', 'linux': 'gztar', 'linux2': 'gztar' }
 # This script simply takes the output of `python setup.py build_exe` and makes
 # a compressed archive (zip for windows, tar.gz for Linux) for distribution.
@@ -23,34 +23,32 @@ def get_version():
     VERSIONFILE="curator/_version.py"
     verstrline = fread(VERSIONFILE).strip()
     vsre = r"^__version__ = ['\"]([^'\"]*)['\"]"
-    mo = re.search(vsre, verstrline, re.M)
-    if mo:
-        VERSION = mo.group(1)
+    if mo := re.search(vsre, verstrline, re.M):
+        VERSION = mo[1]
     else:
-        raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
-    build_number = os.environ.get('CURATOR_BUILD_NUMBER', None)
-    if build_number:
-        return VERSION + "b{}".format(build_number)
+        raise RuntimeError(f"Unable to find version string in {VERSIONFILE}.")
+    if build_number := os.environ.get('CURATOR_BUILD_NUMBER', None):
+        return VERSION + f"b{build_number}"
     return VERSION
 
 def get_path(kind="sdist"):
     if kind == 'bdist_msi':
-        build_path = os.path.join('.', 'dist', get_target(kind))
-    else:
-        if PLATFORM == 'win32':
-            build_name = 'exe.win-' + ENVIRO['PROCESSOR_ARCHITECTURE'].lower() + '-' + PYVER
-        else:
-            build_name = 'exe.' + get_systype() + '-' + PYVER
-        build_path = os.path.join('build', build_name)
-    return build_path
+        return os.path.join('.', 'dist', get_target(kind))
+    build_name = (
+        'exe.win-' + ENVIRO['PROCESSOR_ARCHITECTURE'].lower() + '-' + PYVER
+        if PLATFORM == 'win32'
+        else f'exe.{get_systype()}-{PYVER}'
+    )
+
+    return os.path.join('build', build_name)
 
 def get_target(kind='sdist'):
     if PLATFORM == 'win32':
-        target_name = 'curator-' + str(get_version()) + '-amd64'
+        target_name = f'curator-{str(get_version())}-amd64'
     else:
-        target_name = 'curator-' + str(get_version()) + '-' + get_systype()
+        target_name = f'curator-{str(get_version())}-{get_systype()}'
     if kind == 'bdist_msi':
-        target_name = 'elasticsearch-' + target_name + '.msi'
+        target_name = f'elasticsearch-{target_name}.msi'
     return target_name
 
 def check_target(kind="sdist"):
@@ -65,23 +63,23 @@ def check_target(kind="sdist"):
 def hash_package(fname):
     md5sum = hashlib.md5(open(fname, 'rb').read()).hexdigest()
     sha1sum = hashlib.sha1(open(fname, 'rb').read()).hexdigest()
-    with open(fname + ".md5.txt", "w") as md5_file:
+    with open(f"{fname}.md5.txt", "w") as md5_file:
         md5_file.write("{0}".format(md5sum))
-    with open(fname + ".sha1.txt", "w") as sha1_file:
+    with open(f"{fname}.sha1.txt", "w") as sha1_file:
         sha1_file.write("{0}".format(sha1sum))
     print('Archive: {0}'.format(fname))
-    print('{0} = {1}'.format(fname + ".md5.txt", md5sum))
-    print('{0} = {1}'.format(fname + ".sha1.txt", sha1sum))
+    print('{0} = {1}'.format(f"{fname}.md5.txt", md5sum))
+    print('{0} = {1}'.format(f"{fname}.sha1.txt", sha1sum))
 
 def package_build(kind="sdist"):
     build_path = get_path(kind)
     #print("Looking for build_path: {0}".format(build_path))
     if os.path.exists(build_path):
         #print("I found the build_path: {0}".format(build_path))
-    
+
         target_path = check_target(kind)
         #print("I found the target_path: {0}".format(target_path))
-    
+            
         # Ensure the rename went smoothly, then continue
         if kind == 'bdist_msi':
             shutil.move(build_path, target_path)
@@ -90,11 +88,17 @@ def package_build(kind="sdist"):
             shutil.copytree(build_path, target_path)
             if os.path.exists(target_path):
                 #print("Build successfully renamed")
-                shutil.make_archive('elasticsearch-' + get_target(), ARCHIVE_FMT[PLATFORM], '.', target_path)
+                shutil.make_archive(
+                    f'elasticsearch-{get_target()}',
+                    ARCHIVE_FMT[PLATFORM],
+                    '.',
+                    target_path,
+                )
+
                 if PLATFORM == 'win32':
-                    fname = 'elasticsearch-' + get_target() + '.zip'
+                    fname = f'elasticsearch-{get_target()}.zip'
                 else:
-                    fname = 'elasticsearch-' + get_target() + '.tar.gz'
+                    fname = f'elasticsearch-{get_target()}.tar.gz'
                 # Clean up directory if we made a viable archive.
                 if os.path.exists(fname):
                     shutil.rmtree(target_path)
@@ -131,7 +135,7 @@ def build_a_dist(kind="sdist"):
 if PLATFORM == 'win32':
     build_a_dist('bdist_msi')
     build_a_dist('bdist')
-elif PLATFORM == 'linux' or PLATFORM == 'linux2':
+elif PLATFORM in ['linux', 'linux2']:
     build_a_dist('sdist')
 else:
     # Unsupported platform?

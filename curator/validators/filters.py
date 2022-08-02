@@ -35,9 +35,10 @@ def single(action, data):
 def Filters(action, location=None):
     def f(v):
         def prune_nones(mydict):
-            return dict([(k,v) for k, v in mydict.items() if v != None and v != 'None'])
+            return dict([(k,v) for k, v in mydict.items() if v not in [None, 'None']])
+
         # This validator method simply validates all filters in the list.
-        for idx in range(0, len(v)):
+        for idx in range(len(v)):
             pruned = prune_nones(v[idx])
             filter_dict = SchemaCheck(
                 pruned,
@@ -49,4 +50,5 @@ def Filters(action, location=None):
             v[idx] = filter_dict
         # If we've made it here without raising an Exception, it's valid
         return v
+
     return f

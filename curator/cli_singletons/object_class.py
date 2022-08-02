@@ -46,9 +46,9 @@ class cli_action():
     Unified class for all CLI singleton actions
     """
     def __init__(self, action, client_args, option_dict, filter_list, ignore_empty_list, **kwargs):
-        self.logger = logging.getLogger('curator.cli_singletons.cli_action.' + action)
+        self.logger = logging.getLogger(f'curator.cli_singletons.cli_action.{action}')
         self.action = action
-        self.repository = kwargs['repository'] if 'repository' in kwargs else None
+        self.repository = kwargs.get('repository')
         if action[:5] != 'show_': # Ignore CLASS_MAP for show_indices/show_snapshots
             try:
                 self.action_class = CLASS_MAP[action]
@@ -66,8 +66,9 @@ class cli_action():
             self.alias = {
                 'name': option_dict['name'],
                 'extra_settings': option_dict['extra_settings'],
-                'wini': kwargs['warn_if_no_indices'] if 'warn_if_no_indices' in kwargs else False
+                'wini': kwargs.get('warn_if_no_indices', False),
             }
+
             for k in ['add', 'remove']:
                 if k in kwargs:
                     self.alias[k] = {}
@@ -84,7 +85,7 @@ class cli_action():
                 # todo: fix this in Curator 6, as it's an API-level change.
                 self.action_args = (option_dict['name'], option_dict['conditions'])
                 for k in ['new_index', 'extra_settings', 'wait_for_active_shards']:
-                    self.action_kwargs[k] = kwargs[k] if k in kwargs else None
+                    self.action_kwargs[k] = kwargs.get(k)
         else:
             self.check_filters(filter_list)
         self.client = get_client(**client_args)

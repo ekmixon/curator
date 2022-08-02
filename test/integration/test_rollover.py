@@ -311,7 +311,10 @@ class TestActionFileRollover(CuratorTestCase):
         alias     = 'delamitri'
         condition = 'max_age'
         value     = '1s'
-        expected  = {"%s" % curator.parse_date_pattern(newindex): {u'aliases': {alias: {}}}}
+        expected = {
+            f"{curator.parse_date_pattern(newindex)}": {u'aliases': {alias: {}}}
+        }
+
         self.client.indices.create(
             index=oldindex,
             body={ 'aliases': { alias: {} } }
@@ -359,17 +362,15 @@ class TestActionFileRollover(CuratorTestCase):
         )
         self.assertEqual(expected, len(self.client.indices.get_alias(name=alias)))
     def test_no_rollover_ilm_associated(self):
-        oldindex  = 'rolltome-000001'
         newindex  = 'rolltome-000002'
-        alias     = 'delamitri'
-        condition = 'max_age'
-        value     = '1s'
         expected  = 1
         version = curator.utils.get_version(self.client)
         if version <= (6, 6, 0):
             # No ILM before 6.6.x
             self.assertEqual(expected, 1)
         else:
+            oldindex  = 'rolltome-000001'
+            alias     = 'delamitri'
             self.client.indices.create(
                 index=oldindex, 
                 body={'settings': {'index': {'lifecycle': {'name': 'generic'}}}, 'aliases': { alias: {} } }
@@ -377,6 +378,8 @@ class TestActionFileRollover(CuratorTestCase):
             time.sleep(1)
             self.write_config(
                 self.args['configfile'], testvars.client_config.format(host, port))
+            condition = 'max_age'
+            value     = '1s'
             self.write_config(self.args['actionfile'],
                 testvars.rollover_one.format(alias, condition, value))
             test = clicktest.CliRunner()

@@ -40,10 +40,12 @@ def rollover(
     """
     Rollover Index associated with Alias
     """
-    conditions = {}
-    for cond in ['max_age', 'max_docs', 'max_size']:
-        if eval(cond) is not None:
-            conditions[cond] = eval(cond)
+    conditions = {
+        cond: eval(cond)
+        for cond in ['max_age', 'max_docs', 'max_size']
+        if eval(cond) is not None
+    }
+
     manual_options = {
         'name': name,
         'conditions': conditions,

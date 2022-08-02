@@ -42,7 +42,6 @@ def get_client():
 
     client = Elasticsearch([os.environ.get('TEST_ES_SERVER', {})], timeout=300)
 
-    # wait for yellow status
     for _ in range(100):
         time.sleep(.1)
         try:
@@ -51,9 +50,8 @@ def get_client():
             return client
         except ConnectionError:
             continue
-    else:
-        # timeout
-        raise SkipTest("Elasticsearch failed to start.")
+    # timeout
+    raise SkipTest("Elasticsearch failed to start.")
 
 def setup():
     get_client()
@@ -104,9 +102,9 @@ class CuratorTestCase(TestCase):
 
     def create_indices(self, count, unit=None, ilm_policy=None):
         now = datetime.utcnow()
-        unit = unit if unit else self.args['time_unit']
+        unit = unit or self.args['time_unit']
         format = DATEMAP[unit]
-        if not unit == 'months':
+        if unit != 'months':
             step = timedelta(**{unit: 1})
             for _ in range(count):
                 self.create_index(self.args['prefix'] + now.strftime(format), wait_for_yellow=False, ilm_policy=ilm_policy)
@@ -117,10 +115,7 @@ class CuratorTestCase(TestCase):
             self.create_index(self.args['prefix'] + now.strftime(format), wait_for_yellow=False, ilm_policy=ilm_policy)
 
             for _ in range(1, count):
-                if d.month == 1:
-                    d = date(d.year-1, 12, 1)
-                else:
-                    d = date(d.year, d.month-1, 1)
+                d = date(d.year-1, 12, 1) if d.month == 1 else date(d.year, d.month-1, 1)
                 self.create_index(self.args['prefix'] + datetime(d.year, d.month, 1).strftime(format), wait_for_yellow=False, ilm_policy=ilm_policy)
         # pylint: disable=E1123
         self.client.cluster.health(wait_for_status='yellow')
@@ -142,10 +137,20 @@ class CuratorTestCase(TestCase):
             ver = get_version(self.client)
             if ver >= (7, 0, 0):
                 self.client.create(
-                    index=idx, doc_type='_doc', id=i, body={"doc" + i :'TEST DOCUMENT'})
+                    index=idx,
+                    doc_type='_doc',
+                    id=i,
+                    body={f"doc{i}": 'TEST DOCUMENT'},
+                )
+
             else:
                 self.client.create(
-                    index=idx, doc_type='doc', id=i, body={"doc" + i :'TEST DOCUMENT'})
+                    index=idx,
+                    doc_type='doc',
+                    id=i,
+                    body={f"doc{i}": 'TEST DOCUMENT'},
+                )
+
             # This should force each doc to be in its own segment.
             # pylint: disable=E1123
             self.client.indices.flush(index=idx, force=True)

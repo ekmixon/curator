@@ -43,10 +43,11 @@ class SchemaCheck(object):
                     key = int(k)
                 except ValueError:
                     key = k
-                if value == None:
+                if value is None:
                     value = data[key]
                     # if this fails, it's caught below
             return value
+
         try:
             self.badvalue = get_badvalue(str(self.error).split()[-1], self.config)
         except:

@@ -11,28 +11,27 @@ def get_version():
     VERSIONFILE="curator/_version.py"
     verstrline = fread(VERSIONFILE).strip()
     vsre = r"^__version__ = ['\"]([^'\"]*)['\"]"
-    mo = re.search(vsre, verstrline, re.M)
-    if mo:
-        VERSION = mo.group(1)
+    if mo := re.search(vsre, verstrline, re.M):
+        VERSION = mo[1]
     else:
-        raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
-    build_number = os.environ.get('CURATOR_BUILD_NUMBER', None)
-    if build_number:
-        return VERSION + "b{}".format(build_number)
+        raise RuntimeError(f"Unable to find version string in {VERSIONFILE}.")
+    if build_number := os.environ.get('CURATOR_BUILD_NUMBER', None):
+        return VERSION + f"b{build_number}"
     return VERSION
 
 def get_install_requires():
-    res = ['elasticsearch>=7.12.0,<8.0.0' ]
-    res.append('urllib3==1.26.4')
-    res.append('requests>=2.25.1')
-    res.append('boto3>=1.17.57')
-    res.append('requests_aws4auth>=1.0.1')
-    res.append('click>=7.0,<8.0')
-    res.append('pyyaml==5.4.1')
-    res.append('voluptuous>=0.12.1')
-    res.append('certifi>=2020.12.5')
-    res.append('six>=1.15.0')
-    return res
+    return [
+        'elasticsearch>=7.12.0,<8.0.0',
+        'urllib3==1.26.4',
+        'requests>=2.25.1',
+        'boto3>=1.17.57',
+        'requests_aws4auth>=1.0.1',
+        'click>=7.0,<8.0',
+        'pyyaml==5.4.1',
+        'voluptuous>=0.12.1',
+        'certifi>=2020.12.5',
+        'six>=1.15.0',
+    ]
 
 try:
     ### cx_Freeze ###
@@ -48,10 +47,7 @@ try:
 
     base = 'Console'
 
-    icon = None
-    if os.path.exists('Elastic.ico'):
-        icon = 'Elastic.ico'
-
+    icon = 'Elastic.ico' if os.path.exists('Elastic.ico') else None
     curator_exe = Executable(
         "run_curator.py",
         base=base,
@@ -111,22 +107,22 @@ try:
         }
 
     setup(
-        name = "elasticsearch-curator",
-        version = get_version(),
-        author = "Elastic",
-        author_email = "info@elastic.co",
-        description = "Tending your Elasticsearch indices",
+        name="elasticsearch-curator",
+        version=get_version(),
+        author="Elastic",
+        author_email="info@elastic.co",
+        description="Tending your Elasticsearch indices",
         long_description=fread('README.rst'),
-        url = "http://github.com/elastic/curator",
-        download_url = "https://github.com/elastic/curator/tarball/v" + get_version(),
-        license = "Apache License, Version 2.0",
-        install_requires = get_install_requires(),
-        setup_requires = get_install_requires(),
-        keywords = "elasticsearch time-series indexed index-expiry",
-        packages = ["curator"],
+        url="http://github.com/elastic/curator",
+        download_url=f"https://github.com/elastic/curator/tarball/v{get_version()}",
+        license="Apache License, Version 2.0",
+        install_requires=get_install_requires(),
+        setup_requires=get_install_requires(),
+        keywords="elasticsearch time-series indexed index-expiry",
+        packages=["curator"],
         include_package_data=True,
-        entry_points = {
-            "console_scripts" : [
+        entry_points={
+            "console_scripts": [
                 "curator = curator.cli:cli",
                 "curator_cli = curator.curator_cli:main",
                 "es_repo_mgr = curator.repomgrcli:repo_mgr_cli",
@@ -143,29 +139,30 @@ try:
             "Programming Language :: Python :: 3.8",
             "Programming Language :: Python :: 3.9",
         ],
-        test_suite = "test.run_tests.run_all",
-        tests_require = ["mock", "nose", "coverage", "nosexcover"],
-        options = build_dict,
-        executables = [curator_exe, curator_cli_exe, repomgr_exe]
+        test_suite="test.run_tests.run_all",
+        tests_require=["mock", "nose", "coverage", "nosexcover"],
+        options=build_dict,
+        executables=[curator_exe, curator_cli_exe, repomgr_exe],
     )
+
     ### end cx_Freeze ###
 except ImportError:
     setup(
-        name = "elasticsearch-curator",
-        version = get_version(),
-        author = "Elastic",
-        author_email = "info@elastic.co",
-        description = "Tending your Elasticsearch indices",
+        name="elasticsearch-curator",
+        version=get_version(),
+        author="Elastic",
+        author_email="info@elastic.co",
+        description="Tending your Elasticsearch indices",
         long_description=fread('README.rst'),
-        url = "http://github.com/elastic/curator",
-        download_url = "https://github.com/elastic/curator/tarball/v" + get_version(),
-        license = "Apache License, Version 2.0",
-        install_requires = get_install_requires(),
-        keywords = "elasticsearch time-series indexed index-expiry",
-        packages = ["curator"],
+        url="http://github.com/elastic/curator",
+        download_url=f"https://github.com/elastic/curator/tarball/v{get_version()}",
+        license="Apache License, Version 2.0",
+        install_requires=get_install_requires(),
+        keywords="elasticsearch time-series indexed index-expiry",
+        packages=["curator"],
         include_package_data=True,
-        entry_points = {
-            "console_scripts" : [
+        entry_points={
+            "console_scripts": [
                 "curator = curator.cli:cli",
                 "curator_cli = curator.curator_cli:main",
                 "es_repo_mgr = curator.repomgrcli:repo_mgr_cli",
@@ -182,6 +179,6 @@ except ImportError:
             "Programming Language :: Python :: 3.8",
             "Programming Language :: Python :: 3.9",
         ],
-        test_suite = "test.run_tests.run_all",
-        tests_require = ["mock", "nose", "coverage", "nosexcover"]
+        test_suite="test.run_tests.run_all",
+        tests_require=["mock", "nose", "coverage", "nosexcover"],
     )

@@ -54,17 +54,15 @@ class Alias(object):
         try:
             ilo.empty_list_check()
         except exceptions.NoIndices:
-            # Add a warning if there are no indices to add, if so set in options
-            if warn_if_no_indices:
-                self.warn_if_no_indices = True
-                self.loggit.warn(
-                    'No indices found after processing filters. '
-                    'Nothing to add to {0}'.format(self.name)
-                )
-                return
-            else:
+            if not warn_if_no_indices:
                 # Re-raise the exceptions.NoIndices so it will behave as before
                 raise exceptions.NoIndices('No indices to add to alias')
+            self.warn_if_no_indices = True
+            self.loggit.warn(
+                'No indices found after processing filters. '
+                'Nothing to add to {0}'.format(self.name)
+            )
+            return
         for index in ilo.working_list():
             self.loggit.debug(
                 'Adding index {0} to alias {1} with extra settings '
@@ -88,17 +86,15 @@ class Alias(object):
         try:
             ilo.empty_list_check()
         except exceptions.NoIndices:
-            # Add a warning if there are no indices to add, if so set in options
-            if warn_if_no_indices:
-                self.warn_if_no_indices = True
-                self.loggit.warn(
-                    'No indices found after processing filters. '
-                    'Nothing to remove from {0}'.format(self.name)
-                )
-                return
-            else:
+            if not warn_if_no_indices:
                 # Re-raise the exceptions.NoIndices so it will behave as before
                 raise exceptions.NoIndices('No indices to remove from alias')
+            self.warn_if_no_indices = True
+            self.loggit.warn(
+                'No indices found after processing filters. '
+                'Nothing to remove from {0}'.format(self.name)
+            )
+            return
         aliases = self.client.indices.get_alias()
         for index in ilo.working_list():
             if index in aliases:
@@ -124,10 +120,10 @@ class Alias(object):
         call.
         """
         if not self.actions:
-            if not self.warn_if_no_indices:
-                raise exceptions.ActionError('No "add" or "remove" operations')
-            else:
+            if self.warn_if_no_indices:
                 raise exceptions.NoIndices('No "adds" or "removes" found.  Taking no action')
+            else:
+                raise exceptions.ActionError('No "add" or "remove" operations')
         self.loggit.debug('Alias actions: {0}'.format(self.actions))
 
         return {'actions' : self.actions}
@@ -476,19 +472,18 @@ class ClusterRouting(object):
             raise ValueError(
                 'Invalid value for "setting": {0}.'.format(setting)
             )
-        if routing_type == 'allocation':
-            if value not in ['all', 'primaries', 'new_primaries', 'none']:
-                raise ValueError(
-                    'Invalid "value": {0} with "routing_type":'
-                    '{1}.'.format(value, routing_type)
-                )
-        elif routing_type == 'rebalance':
-            if value not in ['all', 'primaries', 'replicas', 'none']:
-                raise ValueError(
-                    'Invalid "value": {0} with "routing_type":'
-                    '{1}.'.format(value, routing_type)
-                )
-        else:
+        if (
+            routing_type == 'allocation'
+            and value not in ['all', 'primaries', 'new_primaries', 'none']
+            or routing_type != 'allocation'
+            and routing_type == 'rebalance'
+            and value not in ['all', 'primaries', 'replicas', 'none']
+        ):
+            raise ValueError(
+                'Invalid "value": {0} with "routing_type":'
+                '{1}.'.format(value, routing_type)
+            )
+        elif routing_type not in ['allocation', 'rebalance']:
             raise ValueError(
                 'Invalid value for "routing_type": {0}.'.format(routing_type)
             )
@@ -576,13 +571,12 @@ class CreateIndex(object):
         )
         try:
             self.client.indices.create(index=self.name, body=self.body)
-        # Most likely error is a 400, `resource_already_exists_exception`
         except RequestError as err:
             match_list = ["index_already_exists_exception", "resource_already_exists_exception"]
             if err.error in match_list and self.ignore_existing:
-                self.loggit.warn('Index %s already exists.' % self.name)
+                self.loggit.warn(f'Index {self.name} already exists.')
             else:
-                raise exceptions.FailedExecution('Index %s already exists.' % self.name)
+                raise exceptions.FailedExecution(f'Index {self.name} already exists.')
         except Exception as err:
             utils.report_failure(err)
 
@@ -607,7 +601,7 @@ class DeleteIndices(object):
         self.client = ilo.client
         #: Instance variable.
         #: String value of `master_timeout` + 's', for seconds.
-        self.master_timeout = str(master_timeout) + 's'
+        self.master_timeout = f'{str(master_timeout)}s'
         self.loggit = logging.getLogger('curator.actions.delete_indices')
         self.loggit.debug('master_timeout value: {0}'.format(
             self.master_timeout))
@@ -626,13 +620,12 @@ class DeleteIndices(object):
             )
             for idx in result:
                 self.loggit.error("---{0}".format(idx))
-            retval = False
+            return False
         else:
             self.loggit.debug(
                 'Successfully deleted all indices on try #{0}'.format(count)
             )
-            retval = True
-        return retval
+            return True
 
     def __chunk_loop(self, chunk_list):
         """
@@ -782,10 +775,12 @@ class IndexSettings(object):
     def _body_check(self):
         # The body only passes the skimpiest of requirements by having 'index'
         # as the only root-level key, and having a 'dict' as its value
-        if len(self.body) == 1:
-            if 'index' in self.body:
-                if isinstance(self.body['index'], dict):
-                    return True
+        if (
+            len(self.body) == 1
+            and 'index' in self.body
+            and isinstance(self.body['index'], dict)
+        ):
+            return True
         raise exceptions.ConfigurationError(
             'Bad value for "index_settings": {0}'.format(self.body))
 
@@ -821,21 +816,16 @@ class IndexSettings(object):
                 open_indices = True
         for k in self.body['index']:
             if k in self._static_settings():
-                if not self.ignore_unavailable:
-                    if open_indices:
-                        raise exceptions.ActionError(
-                            'Static Setting "{0}" detected with open indices: '
-                            '{1}. Static settings can only be used with closed '
-                            'indices.  Recommend filtering out open indices, '
-                            'or setting ignore_unavailable to True'.format(
-                                k, open_index_list
-                            )
+                if not self.ignore_unavailable and open_indices:
+                    raise exceptions.ActionError(
+                        'Static Setting "{0}" detected with open indices: '
+                        '{1}. Static settings can only be used with closed '
+                        'indices.  Recommend filtering out open indices, '
+                        'or setting ignore_unavailable to True'.format(
+                            k, open_index_list
                         )
-            elif k in self._dynamic_settings():
-                # Dynamic settings should be appliable to open or closed indices
-                # Act here if the case is different for some settings.
-                pass
-            else:
+                    )
+            elif k not in self._dynamic_settings():
                 self.loggit.warn(
                     '"{0}" is not a setting Curator recognizes and may or may '
                     'not work.'.format(k)
@@ -1062,8 +1052,7 @@ class Rollover(object):
         """
         Create a body from conditions and settings
         """
-        retval = {}
-        retval['conditions'] = self.conditions
+        retval = {'conditions': self.conditions}
         if self.settings:
             retval['settings'] = self.settings
         return retval
@@ -1072,23 +1061,18 @@ class Rollover(object):
         """
         Log the results based on whether the index rolled over or not
         """
-        dryrun_string = ''
-        if result['dry_run']:
-            dryrun_string = 'DRY-RUN: '
+        dryrun_string = 'DRY-RUN: ' if result['dry_run'] else ''
         self.loggit.debug('{0}Result: {1}'.format(dryrun_string, result))
         rollover_string = '{0}Old index {1} rolled over to new index {2}'.format(
             dryrun_string,
             result['old_index'],
             result['new_index']
         )
-        # Success is determined by at one condition being True
-        success = False
-        for k in list(result['conditions'].keys()):
-            if result['conditions'][k]:
-                success = True
-        if result['dry_run'] and success: # log "successful" dry-run
-            self.loggit.info(rollover_string)
-        elif result['rolled_over']:
+        success = any(
+            result['conditions'][k] for k in list(result['conditions'].keys())
+        )
+
+        if result['dry_run'] and success or result['rolled_over']: # log "successful" dry-run
             self.loggit.info(rollover_string)
         else:
             self.loggit.info(
@@ -1315,29 +1299,30 @@ class Reindex(object):
         if self.body['dest']['index'] == 'MIGRATION':
             self.migration = True
 
-        if self.migration:
-            if not self.remote and not self.mpfx and not self.msfx:
-                raise exceptions.ConfigurationError(
-                    'MIGRATION can only be used locally with one or both of '
-                    'migration_prefix or migration_suffix.'
-                )
+        if self.migration and not self.remote and not self.mpfx and not self.msfx:
+            raise exceptions.ConfigurationError(
+                'MIGRATION can only be used locally with one or both of '
+                'migration_prefix or migration_suffix.'
+            )
 
         # REINDEX_SELECTION is the designated token.  If you use this for the
         # source "index," it will be replaced with the list of indices from the
         # provided 'ilo' (index list object).
         if self.body['source']['index'] == 'REINDEX_SELECTION' \
-                and not self.remote:
+                    and not self.remote:
             self.body['source']['index'] = self.index_list.indices
 
-        # Remote section
         elif self.remote:
             self.loggit.debug('Remote reindex request detected')
             if 'host' not in self.body['source']['remote']:
                 raise exceptions.ConfigurationError('Missing remote "host"')
-            rclient_info = {}
-            for k in ['host', 'username', 'password']:
-                rclient_info[k] = self.body['source']['remote'][k] \
-                    if k in self.body['source']['remote'] else None
+            rclient_info = {
+                k: self.body['source']['remote'][k]
+                if k in self.body['source']['remote']
+                else None
+                for k in ['host', 'username', 'password']
+            }
+
             rhost = rclient_info['host']
             try:
                 # Save these for logging later
@@ -1351,7 +1336,7 @@ class Reindex(object):
                 )
             rhttp_auth = '{0}:{1}'.format(
                 rclient_info['username'], rclient_info['password']) \
-                if (rclient_info['username'] and rclient_info['password']) else None
+                    if (rclient_info['username'] and rclient_info['password']) else None
             if rhost[:5] == 'http:':
                 use_ssl = False
             elif rhost[:5] == 'https':
@@ -1362,14 +1347,14 @@ class Reindex(object):
                     '{0}'.format(rclient_info['host'])
                 )
 
-            # Let's set a decent remote timeout for initially reading
-            # the indices on the other side, and collecting their metadata
-            remote_timeout = 180
-
             # The rest only applies if using filters for remote indices
             if self.body['source']['index'] == 'REINDEX_SELECTION':
                 self.loggit.debug('Filtering indices from remote')
                 from .indexlist import IndexList
+                # Let's set a decent remote timeout for initially reading
+                # the indices on the other side, and collecting their metadata
+                remote_timeout = 180
+
                 self.loggit.debug(
                     'Remote client args: '
                     'host={0} '
@@ -1834,7 +1819,7 @@ class Restore(object):
         self.loggit.debug('"most_recent" snapshot: {0}'.format(most_recent))
         #: Instance variable.
         #: Will use a provided snapshot name, or the most recent snapshot in slo
-        self.name = name if name else most_recent
+        self.name = name or most_recent
         # Stop here now, if it's not a successful snapshot.
         if slo.snapshot_info[self.name]['state'] == 'PARTIAL' and partial:
             self.loggit.warn(
@@ -1868,10 +1853,10 @@ class Restore(object):
         self.max_wait = max_wait
         #: Instance variable version of ``rename_pattern``
         self.rename_pattern = rename_pattern if rename_replacement is not None \
-            else ''
+                else ''
         #: Instance variable version of ``rename_replacement``
         self.rename_replacement = rename_replacement if rename_replacement \
-            is not None else ''
+                is not None else ''
         #: Also an instance variable version of ``rename_replacement``
         #: but with Java regex group designations of ``$#``
         #: converted to Python's ``\\#`` style.
@@ -1897,7 +1882,7 @@ class Restore(object):
                 '{0}'.format(extra_settings)
             )
             try:
-                self.body.update(extra_settings)
+                self.body |= extra_settings
             except:
                 self.loggit.error(
                     'Unable to apply extra settings to restore body')
@@ -2139,13 +2124,13 @@ class Shrink(object):
     def _data_node(self, node_id):
         roles = utils.node_roles(self.client, node_id)
         name = utils.node_id_to_name(self.client, node_id)
-        if not 'data' in roles:
+        if 'data' not in roles:
             self.loggit.info('Skipping node "{0}": non-data node'.format(name))
             return False
         if 'master' in roles and not self.node_filters['permit_masters']:
             self.loggit.info('Skipping node "{0}": master node'.format(name))
             return False
-        elif 'master' in roles and self.node_filters['permit_masters']:
+        elif 'master' in roles:
             self.loggit.warn(
                 'Not skipping node "{0}" which is a master node (not recommended), but '
                 'permit_masters is True'.format(name)
@@ -2155,10 +2140,12 @@ class Shrink(object):
             return True
 
     def _exclude_node(self, name):
-        if 'exclude_nodes' in self.node_filters:
-            if name in self.node_filters['exclude_nodes']:
-                self.loggit.info('Excluding node "{0}" due to node_filters'.format(name))
-                return True
+        if (
+            'exclude_nodes' in self.node_filters
+            and name in self.node_filters['exclude_nodes']
+        ):
+            self.loggit.info('Excluding node "{0}" due to node_filters'.format(name))
+            return True
         return False
 
     def _shrink_target(self, name):
@@ -2167,12 +2154,11 @@ class Shrink(object):
     def qualify_single_node(self):
         """Qualify a single node as a shrink target"""
         node_id = utils.name_to_node_id(self.client, self.shrink_node)
-        if node_id:
-            self.shrink_node_id = node_id
-            self.shrink_node_name = self.shrink_node
-        else:
+        if not node_id:
             raise exceptions.ConfigurationError(
                 'Unable to find node named: "{0}"'.format(self.shrink_node))
+        self.shrink_node_id = node_id
+        self.shrink_node_name = self.shrink_node
         if self._exclude_node(self.shrink_node):
             raise exceptions.ConfigurationError(
                 'Node "{0}" listed for exclusion'.format(self.shrink_node))
@@ -2266,11 +2252,11 @@ class Shrink(object):
             self.__log_action(error_msg, dry_run)
 
     def _check_node(self):
-        if self.shrink_node != 'DETERMINISTIC':
-            if not self.shrink_node_name:
-                self.qualify_single_node()
-        else:
+        if self.shrink_node == 'DETERMINISTIC':
             self.most_available_node()
+
+        elif not self.shrink_node_name:
+            self.qualify_single_node()
         # At this point, we should have the three shrink-node identifying
         # instance variables:
         # - self.shrink_node_name
@@ -2307,7 +2293,7 @@ class Shrink(object):
         factors = [x for x in range(1, src_shards+1) if src_shards % x == 0]
         # Pop the last one, because it will be the value of src_shards
         factors.pop()
-        if not self.number_of_shards in factors:
+        if self.number_of_shards not in factors:
             error_msg = (
                 '"{0}" is not a valid factor of {1} shards.  Valid values are '
                 '{2}'.format(self.number_of_shards, src_shards, factors)
@@ -2318,10 +2304,15 @@ class Shrink(object):
         shards = self.client.cluster.state(index=idx)['routing_table']['indices'][idx]['shards']
         found = []
         for shardnum in shards:
-            for shard_idx in range(0, len(shards[shardnum])):
-                if shards[shardnum][shard_idx]['node'] == self.shrink_node_id:
-                    found.append(
-                        {'shard': shardnum, 'primary': shards[shardnum][shard_idx]['primary']})
+            found.extend(
+                {
+                    'shard': shardnum,
+                    'primary': shards[shardnum][shard_idx]['primary'],
+                }
+                for shard_idx in range(len(shards[shardnum]))
+                if shards[shardnum][shard_idx]['node'] == self.shrink_node_id
+            )
+
         if len(shards) != len(found):
             self.loggit.debug(
                 'Found these shards on node "{0}": {1}'.format(self.shrink_node_name, found))
@@ -2354,10 +2345,13 @@ class Shrink(object):
         aliases = self.client.indices.get_alias(index=source_idx)
         for alias in aliases[source_idx]['aliases']:
             self.loggit.debug('alias: {0}'.format(alias))
-            alias_actions.append(
-                {'remove': {'index': source_idx, 'alias': alias}})
-            alias_actions.append(
-                {'add': {'index': target_idx, 'alias': alias}})
+            alias_actions.extend(
+                (
+                    {'remove': {'index': source_idx, 'alias': alias}},
+                    {'add': {'index': target_idx, 'alias': alias}},
+                )
+            )
+
         if alias_actions:
             self.loggit.info('Copy alias actions: {0}'.format(alias_actions))
             self.client.indices.update_aliases({'actions' : alias_actions})

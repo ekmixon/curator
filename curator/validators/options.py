@@ -147,7 +147,7 @@ def get_schema(action):
         option_defaults.timeout_override(action),
     ]
     for each in defaults:
-        options.update(each)
+        options |= each
     for each in action_specific(action):
         options.update(each)
     return Schema(options)

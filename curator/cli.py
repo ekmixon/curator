@@ -58,11 +58,10 @@ def process_action(client, config, **kwargs):
 
     # Add some settings to mykwargs...
     if action == 'delete_indices':
-        mykwargs['master_timeout'] = (
-            kwargs['master_timeout'] if 'master_timeout' in kwargs else 30)
+        mykwargs['master_timeout'] = kwargs.get('master_timeout', 30)
 
     ### Update the defaults with whatever came with opts, minus any Nones
-    mykwargs.update(prune_nones(opts))
+    mykwargs |= prune_nones(opts)
     logger.debug('Action kwargs: {0}'.format(mykwargs))
 
     ### Set up the action ###
@@ -84,7 +83,7 @@ def process_action(client, config, **kwargs):
             action_obj.add(adds, warn_if_no_indices=opts['warn_if_no_indices'])
     elif action in ['cluster_routing', 'create_index', 'rollover']:
         action_obj = action_class(client, **mykwargs)
-    elif action == 'delete_snapshots' or action == 'restore':
+    elif action in ['delete_snapshots', 'restore']:
         logger.debug('Running "{0}"'.format(action))
         slo = SnapshotList(client, repository=opts['repository'])
         slo.iterate_filters(config)
@@ -155,10 +154,10 @@ def run(config, action_file, dry_run=False):
             client_args['timeout'] = default_timeout
 
         # Set up action kwargs
-        kwargs = {}
-        kwargs['master_timeout'] = (
-            client_args['timeout'] if client_args['timeout'] <= 300 else 300)
-        kwargs['dry_run'] = dry_run
+        kwargs = {
+            'master_timeout': min(client_args['timeout'], 300),
+            'dry_run': dry_run,
+        }
 
         # Create a client object for each action...
         logger.info('Creating client object and testing connection')
@@ -197,7 +196,7 @@ def run(config, action_file, dry_run=False):
             )
             process_action(client, actions[idx], **kwargs)
         except Exception as err:
-            if isinstance(err, NoIndices) or isinstance(err, NoSnapshots):
+            if isinstance(err, (NoIndices, NoSnapshots)):
                 if ignore_empty_list:
                     logger.info(
                         'Skipping action "{0}" due to empty list: '

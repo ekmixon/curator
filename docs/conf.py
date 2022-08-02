@@ -21,14 +21,12 @@ def get_version():
     VERSIONFILE="../curator/_version.py"
     verstrline = fread(VERSIONFILE).strip()
     vsre = r"^__version__ = ['\"]([^'\"]*)['\"]"
-    mo = re.search(vsre, verstrline, re.M)
-    if mo:
-        VERSION = mo.group(1)
+    if mo := re.search(vsre, verstrline, re.M):
+        VERSION = mo[1]
     else:
-        raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
-    build_number = os.environ.get('CURATOR_BUILD_NUMBER', None)
-    if build_number:
-        return VERSION + "b{}".format(build_number)
+        raise RuntimeError(f"Unable to find version string in {VERSIONFILE}.")
+    if build_number := os.environ.get('CURATOR_BUILD_NUMBER', None):
+        return VERSION + f"b{build_number}"
     return VERSION
 
 # If extensions (or modules to document with autodoc) are in another directory,

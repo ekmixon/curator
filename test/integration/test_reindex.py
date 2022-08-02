@@ -90,12 +90,13 @@ class TestActionFileReindex(CuratorTestCase):
         self.create_index(source2)
         for i in ["4", "5", "6"]:
             ver = curator.get_version(self.client)
-            if ver >= (7, 0, 0):
-                self.client.create(
-                    index=source2, doc_type='doc', id=i, body={"doc" + i :'TEST DOCUMENT'})
-            else:
-                self.client.create(
-                    index=source2, doc_type='doc', id=i, body={"doc" + i :'TEST DOCUMENT'})
+            self.client.create(
+                index=source2,
+                doc_type='doc',
+                id=i,
+                body={f"doc{i}": 'TEST DOCUMENT'},
+            )
+
             # Decorators make this pylint exception necessary
             # pylint: disable=E1123
             self.client.indices.flush(index=source2, force=True)
@@ -126,9 +127,12 @@ class TestActionFileReindex(CuratorTestCase):
         self.create_index(source2)
         for i in ["4", "5", "6"]:
             self.client.create(
-                index=source2, doc_type='log', id=i,
-                body={"doc" + i :'TEST DOCUMENT'},
+                index=source2,
+                doc_type='log',
+                id=i,
+                body={f"doc{i}": 'TEST DOCUMENT'},
             )
+
             # Decorators make this pylint exception necessary
             # pylint: disable=E1123
             self.client.indices.flush(index=source2, force=True)
@@ -155,9 +159,12 @@ class TestActionFileReindex(CuratorTestCase):
         self.create_index(source2)
         for i in ["4", "5", "6"]:
             self.client.create(
-                index=source2, doc_type='log', id=i,
-                body={"doc" + i :'TEST DOCUMENT'},
+                index=source2,
+                doc_type='log',
+                id=i,
+                body={f"doc{i}": 'TEST DOCUMENT'},
             )
+
             # Decorators make this pylint exception necessary
             # pylint: disable=E1123
             self.client.indices.flush(index=source2, force=True)
@@ -192,11 +199,14 @@ class TestActionFileReindex(CuratorTestCase):
         counter = 0
         for rindex in [source1, source2]:
             rclient.indices.create(index=rindex)
-            for i in range(0, 3):
+            for i in range(3):
                 rclient.create(
-                    index=rindex, doc_type='log', id=str(counter+1),
-                    body={"doc" + str(counter+i) :'TEST DOCUMENT'},
+                    index=rindex,
+                    doc_type='log',
+                    id=str(counter + 1),
+                    body={f"doc{str(counter+i)}": 'TEST DOCUMENT'},
                 )
+
                 counter += 1
                 # Decorators make this pylint exception necessary
                 # pylint: disable=E1123
@@ -243,11 +253,14 @@ class TestActionFileReindex(CuratorTestCase):
         counter = 0
         for rindex in [source1, source2]:
             rclient.indices.create(index=rindex)
-            for i in range(0, 3):
+            for i in range(3):
                 rclient.create(
-                    index=rindex, doc_type='log', id=str(counter+1),
-                    body={"doc" + str(counter+i) :'TEST DOCUMENT'},
+                    index=rindex,
+                    doc_type='log',
+                    id=str(counter + 1),
+                    body={f"doc{str(counter+i)}": 'TEST DOCUMENT'},
                 )
+
                 counter += 1
                 # Decorators make this pylint exception necessary
                 # pylint: disable=E1123
@@ -300,11 +313,14 @@ class TestActionFileReindex(CuratorTestCase):
         counter = 0
         for rindex in [source1, source2]:
             rclient.indices.create(index=rindex)
-            for i in range(0, 3):
+            for i in range(3):
                 rclient.create(
-                    index=rindex, doc_type='log', id=str(counter+1),
-                    body={"doc" + str(counter+i) :'TEST DOCUMENT'},
+                    index=rindex,
+                    doc_type='log',
+                    id=str(counter + 1),
+                    body={f"doc{str(counter+i)}": 'TEST DOCUMENT'},
                 )
+
                 counter += 1
                 # Decorators make this pylint exception necessary
                 # pylint: disable=E1123
@@ -380,15 +396,18 @@ class TestActionFileReindex(CuratorTestCase):
         counter = 0
         for rindex in [source1, source2]:
             rclient.indices.create(index=rindex)
-            for i in range(0, 3):
+            for i in range(3):
                 rclient.create(
-                    index=rindex, doc_type='log', id=str(counter+1),
-                    body={"doc" + str(counter+i) :'TEST DOCUMENT'},
+                    index=rindex,
+                    doc_type='log',
+                    id=str(counter + 1),
+                    body={f"doc{str(counter+i)}": 'TEST DOCUMENT'},
                 )
+
                 counter += 1
                 # Decorators make this pylint exception necessary
                 # pylint: disable=E1123
-                rclient.indices.flush(index=rindex, force=True)        
+                rclient.indices.flush(index=rindex, force=True)
         self.write_config(
             self.args['configfile'], testvars.client_config.format(host, port))
         self.write_config(self.args['actionfile'],

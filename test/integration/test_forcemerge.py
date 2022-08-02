@@ -42,7 +42,7 @@ class TestActionFileforceMerge(CuratorTestCase):
         # With Python 2.7 and ES 7.0, it apparently can finish testing before
         # the segments have _reported_ as fully merged. This is forcing
         # 3 checks before giving up and reporting the result.
-        for _ in range(0, 3):   
+        for _ in range(3):   
             self.client.indices.refresh(index=idx)
             ilo2._get_segment_counts()
             if ilo2.index_info[idx]['segments'] == count:
@@ -88,7 +88,7 @@ class TestCLIforceMerge(CuratorTestCase):
         # With Python 2.7 and ES 7.0, it apparently can finish testing before
         # the segments have _reported_ as fully merged. This is forcing
         # 3 checks before giving up and reporting the result.
-        for _ in range(0, 3):   
+        for _ in range(3):   
             self.client.indices.refresh(index=idx)
             ilo2._get_segment_counts()
             if ilo2.index_info[idx]['segments'] == count:

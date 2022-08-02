@@ -11,14 +11,11 @@ def test_config(config):
     # Get config from yaml file
     yaml_config = get_yaml(config)
     # if the file is empty, which is still valid yaml, set as an empty dict
-    yaml_config = {} if not yaml_config else prune_nones(yaml_config)
+    yaml_config = prune_nones(yaml_config) if yaml_config else {}
     # Voluptuous can't verify the schema of a dict if it doesn't have keys,
     # so make sure the keys are at least there and are dict()
     for k in ['client', 'logging']:
-        if k not in yaml_config:
-            yaml_config[k] = {}
-        else:
-            yaml_config[k] = prune_nones(yaml_config[k])
+        yaml_config[k] = {} if k not in yaml_config else prune_nones(yaml_config[k])
     return SchemaCheck(
         yaml_config, config_file.client(), 'Client Configuration', 'full configuration dictionary'
     ).result()

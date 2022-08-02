@@ -50,10 +50,7 @@ def epoch(**kwargs):
 def exclude(**kwargs):
     # pylint: disable=E1120
     # This setting is available in all filter types.
-    if 'exclude' in kwargs and kwargs['exclude']:
-        val = True
-    else: # False by default
-        val = False
+    val = bool('exclude' in kwargs and kwargs['exclude'])
     return {Optional('exclude', default=val): Any(bool, All(Any(*string_types), Boolean()))}
 
 def field(**kwargs):
